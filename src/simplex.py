@@ -141,24 +141,28 @@ class Table:
             columns=[f"${value}$" for value in self.h_labels]
         ).to_markdown()
     
-    def function_to_md(self, precision: int = 3):
+    def function_to_md(self, inverse: bool = False, precision: int = 3):
         # Group by basis & non-basis variables
+
+        if inverse:
+            self.table[-1, 0] *= -1
+
         *basis, F = [
             f"{label}={value}" for value, label in zip(
                 np.round(self.table[:, 0].flatten(), precision),
                 self.v_labels
             )
         ]
-        basis = ', '.join(basis)
         non_basis = '='.join(self.h_labels[1:])
+        variables = ', '.join([f"{non_basis}=0", *basis])
 
-        return '\n'.join(
-            [
-                f"$${F}$$",
-                f"$${non_basis}=0$$",
-                f"$${basis}$$"
-            ]
-        )
+        if inverse:
+            self.table[-1, 0] *= -1
+
+        return [
+                f"${F}$",
+                f"${variables}$",
+        ]
 
 
 class Simplex:
@@ -167,17 +171,33 @@ class Simplex:
         table = Table.create(c, A, b)
 
         if verbose:
-            display_markdown("### Изначальная симплекс-таблица", raw=True)
-            display_markdown(table.table_to_md(), raw=True)
-            display_markdown(table.function_to_md(), raw=True)
+            tgt, base = table.function_to_md()
+
+            display_markdown(
+                "### Изначальная симплекс-таблица",
+                table.table_to_md(),
+                "### Целевая функция",
+                tgt,
+                "### Опорное решение",
+                base,
+                raw=True
+            )
 
         counter = count(1)
         while solver := table.find_solver():
             table.step(*solver)
             
             if verbose:
-                display_markdown(f"### {next(counter)} шаг. Разрешающий элемент $x_{{{solver[0]},{solver[1]}}} = {table.table[solver]}$", raw=True)
-                display_markdown(table.table_to_md(), raw=True)
-                display_markdown(table.function_to_md(), raw=True)
+                tgt, base = table.function_to_md()
+                
+                display_markdown(
+                    f"### {next(counter)} шаг. Разрешающий элемент $x_{{{solver[0]},{solver[1]}}} = {table.table[solver]}$",
+                    table.table_to_md(),
+                    "### Целевая функция",
+                    tgt,
+                    "### Опорное решение" if solver[0] != table.table.shape[0] - 1 else "### Недопустимое решение",
+                    base,
+                    raw=True
+                )
 
         return table

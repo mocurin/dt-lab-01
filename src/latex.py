@@ -10,7 +10,7 @@ class Brackets:
     double = 'V'
 
 
-def array_to_latex(array: np.array, name: str = str(), brackets: Brackets = Brackets.plain):
+def array_to_latex(array: np.ndarray, name: str = str(), brackets: Brackets = Brackets.plain):
     assert len(array.shape) == 1, f"Can not display array of shape: {array.shape}"
 
     row = ' & '.join(array.astype(str))
@@ -18,10 +18,22 @@ def array_to_latex(array: np.array, name: str = str(), brackets: Brackets = Brac
 
     return f"${line}$"
 
-def matrix_to_latex(array: np.array, name: str = str(), brackets: Brackets = Brackets.plain):
+def matrix_to_latex(array: np.ndarray, name: str = str(), brackets: Brackets = Brackets.plain):
     assert len(array.shape) == 2, f"Can not display array of shape: {array.shape}"
 
     rows = '\\\\\n'.join(' & '.join(row.astype(str)) for row in array)
     line = name and f"{name} = " + f"\\begin{{{brackets}matrix}}\n{rows}\n\\end{{{brackets}matrix}}"
 
     return f"${line}$"
+
+def equation_body(values: list, labels: list, precision: int = 3) -> str:
+    return ''.join(
+        f"{'+' if value > 0 else ''}{value if value != 1.0 else ''}{var}"
+        for var, val in zip(labels, values)
+        if (value := np.round(val, precision))
+    ).lstrip('+')
+
+def equation_system(values: np.ndarray, result: np.ndarray, labels: np.array, precision: int = 3) -> str:
+    line = '\\\\\n'.join(f"{equation_body(val, labels, precision)}={res}" for val, res in zip(values, result))
+
+    return f"$\\begin{{cases}}{line}\n\\end{{cases}}$"
