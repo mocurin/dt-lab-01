@@ -30,12 +30,12 @@ class Table:
             ), table
         ])
 
-        # Create indices & column names
+        # Create rows & column names
         _, columns = A.shape
         labels = [f"x_{idx}" for idx in range(1, sum(A.shape) + 1)]
         labels = ['s_0', *labels[:columns]], [*labels[columns:], 'F']
 
-        # create helper structure
+        # Create helper structure
         return cls(table, *labels)
     
     def find_negative(self, idx: int) -> Optional[int]:
@@ -45,7 +45,7 @@ class Table:
         # Look for first negative
         indices = np.flatnonzero(row < 0)
 
-        # Extract index
+        # Extract index (compensate for missing leading value by adding one to index)
         return (indices[0] + 1) if len(indices) else None
 
     def find_positive(self) -> Optional[int]:
@@ -55,7 +55,7 @@ class Table:
         # Look for first positive
         indices = np.flatnonzero(row > 0)
 
-        # Extract index
+        # Extract index (compensate for missing leading value by adding one to index)
         return (indices[0] + 1) if len(indices) else None
 
     def find_minimal_ratio(self, jdx: int) -> Optional[int]:
@@ -76,15 +76,14 @@ class Table:
             )
         )
 
-        # Check if there were any valid ratios
+        # Check if there were any valid ratios & return idx
         return idx if pos_inf[idx] != +np.inf else None
 
     def find_solver(self) -> tuple[int, int]:
         # Values of s0-column (w/o F-row value)
         column = self.table[:-1, 0].flatten()
 
-        # Index of first negative in s0
-        # filter enumerate pairs for correct idx
+        # Look for first negative
         indices = np.flatnonzero(column < 0)
 
         # Extract index
@@ -95,12 +94,14 @@ class Table:
         # else look for first positive in F-row
         jdx = self.find_negative(idx) if idx else self.find_positive()
 
+        # No column - either solved, or not solvable at all
         if jdx is None:
             return
 
-        # No column - either solved, or not solvable at all
+        # Find minimal positive ratio of solver s0 & solver column
         idx = self.find_minimal_ratio(jdx) if jdx else None
 
+        # There is no solver row
         if idx is None:
             return
 
@@ -133,6 +134,7 @@ class Table:
                 self.table[i, j] -= solver_column[i] * solver_row[j] / solver
 
     def table_to_md(self, precision: int = 3):
+        # Cast to pandas table with convinient methods
         return pd.DataFrame(
             np.round(self.table, precision),
             index=[f"${value}$" for value in self.v_labels],
@@ -140,6 +142,7 @@ class Table:
         ).to_markdown()
     
     def function_to_md(self, precision: int = 3):
+        # Group by basis & non-basis variables
         *basis, F = [
             f"{label}={value}" for value, label in zip(
                 np.round(self.table[:, 0].flatten(), precision),
