@@ -37,3 +37,34 @@ def equation_system(values: np.ndarray, result: np.ndarray, labels: np.array, pr
     line = '\\\\\n'.join(f"{equation_body(val, labels, precision)}={res}" for val, res in zip(values, result))
 
     return f"$\\begin{{cases}}{line}\n\\end{{cases}}$"
+
+def check(left: np.ndarray, right: np.ndarray, precision: int = 3) -> str:
+    result = sum(left * right)
+
+    # Округляем все значения
+    left, right = [
+        [
+            np.round(value, precision)
+            for value in values
+        ]
+        for values in [
+            left, right
+        ]
+    ]
+
+    # Соединяем при помощи cdot все пары значений без 0
+    values = [
+        '\cdot'.join(
+            [
+                f"({val})" if val < 0 else str(val)
+                for val in values
+            ]
+        )
+        for values in zip(
+            left, right
+        )
+        if all(values)
+    ]
+
+    # Все суммируем, добавляем результат
+    return '+'.join(values) + f"={np.round(result, precision)}"

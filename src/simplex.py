@@ -79,7 +79,7 @@ class Table:
         # Check if there were any valid ratios & return idx
         return idx if pos_inf[idx] != +np.inf else None
 
-    def find_solver(self) -> tuple[int, int]:
+    def find_fixer(self) -> tuple[tuple[int, int], bool]:
         # Values of s0-column (w/o F-row value)
         column = self.table[:-1, 0].flatten()
 
@@ -89,24 +89,41 @@ class Table:
         # Extract index
         idx = indices[0] if len(indices) else None
 
-        # If there is negative in s0-column -
-        # look for negative in non-basis variables
-        # else look for first positive in F-row
-        jdx = self.find_negative(idx) if idx else self.find_positive()
+        if idx is None:
+            return None, True
+
+        jdx = self.find_negative(idx)
 
         # No column - either solved, or not solvable at all
         if jdx is None:
-            return
+            return None, False
 
         # Find minimal positive ratio of solver s0 & solver column
         idx = self.find_minimal_ratio(jdx) if jdx else None
 
         # There is no solver row
         if idx is None:
-            return
+            return None, False
 
         # Return tuple if both of indices are valid
-        return (idx, jdx)
+        return (idx, jdx), True
+
+    def find_solver(self) -> tuple[tuple[int, int], bool]:
+        jdx = self.find_positive()
+
+        # No column - solved
+        if jdx is None:
+            return None, True
+
+        # Find minimal positive ratio of solver s0 & solver column
+        idx = self.find_minimal_ratio(jdx) if jdx else None
+
+        # There is no solver row
+        if idx is None:
+            return None, False
+
+        # Return tuple if both of indices are valid
+        return (idx, jdx), True
     
     def step(self, idx: int, jdx: int):
         # Table dimensions
@@ -132,6 +149,8 @@ class Table:
                 self.table[i, j] /= -solver
             else:
                 self.table[i, j] -= solver_column[i] * solver_row[j] / solver
+        
+        return self
 
     def table_to_md(self, precision: int = 3):
         # Cast to pandas table with convinient methods
@@ -167,37 +186,64 @@ class Table:
 
 class Simplex:
     @classmethod
-    def resolve(cls, c: np.ndarray, A: np.ndarray, b: np.ndarray, verbose: bool = False) -> Table:
+    def resolve(cls, c: np.ndarray, A: np.ndarray, b: np.ndarray) -> tuple[Table, bool]:
+        """
+        Complete Simplex-algorithm pipeline
+        """
+
+        # Exhaust generator till final table
+        for table, _, flag in cls.resolve_gen(c, A, b):
+            pass
+
+        return table, flag
+    
+    @classmethod
+    def resolve_gen(cls, c: np.ndarray, A: np.ndarray, b: np.ndarray) -> tuple[Table, tuple[int, int], bool]:
+        """
+        Yields Simplex-algorithm execution results on crucial steps
+
+        №1: Table created:
+          a) Primary table, None, True
+        №2: Fixed non-accepatble solution:
+          a) Fixed: Fixed table, Pos, True
+          б) No need in fix: Old table, None, True
+          в) Can not be fixed: Old table, None, False
+        №3-inf: Regular pipeline:
+          a) New table, Pos, True
+        """
+        # Creates helper-structure
         table = Table.create(c, A, b)
 
-        if verbose:
-            tgt, base = table.function_to_md()
+        # Primary table
+        yield table, None, True
 
-            display_markdown(
-                "### Изначальная симплекс-таблица",
-                table.table_to_md(),
-                "### Целевая функция",
-                tgt,
-                "### Опорное решение",
-                base,
-                raw=True
-            )
+        # Condition №1
+        # Checks if any value of S0 column is negative
+        position, solvable = table.find_fixer()
 
-        counter = count(1)
+        # If there is negative value in coreesponding column
+        if position:
+            table.step(*position)
+
+        # Table-after-fix
+        yield table, position, solvable
+
+        # This won't be solvable if there is no
+        # negative value in corresponding row
+        # So, exit early
+        if not solvable:
+            return
+
+        # Continuosly check for condtion №2
         while solver := table.find_solver():
-            table.step(*solver)
-            
-            if verbose:
-                tgt, base = table.function_to_md()
-                
-                display_markdown(
-                    f"### {next(counter)} шаг. Разрешающий элемент $x_{{{solver[0]},{solver[1]}}} = {table.table[solver]}$",
-                    table.table_to_md(),
-                    "### Целевая функция",
-                    tgt,
-                    "### Опорное решение" if solver[0] != table.table.shape[0] - 1 else "### Недопустимое решение",
-                    base,
-                    raw=True
-                )
+            solver, solvable = solver
 
-        return table
+            # Решение в тупике
+            if not solvable or solver is None:
+                return
+
+            # Evolve table each time solver (col/row indicies pair) is found
+            table.step(*solver)
+
+            # Table-after-step
+            yield table, solver, solvable
