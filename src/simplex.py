@@ -5,8 +5,6 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from IPython.display import display_markdown
-
 
 @dataclass
 class Table:
@@ -15,7 +13,7 @@ class Table:
     v_labels: list
 
     @classmethod
-    def create(cls, c: np.ndarray, A: np.ndarray, b: np.ndarray):
+    def create(cls, c: np.ndarray, A: np.ndarray, b: np.ndarray, sym: str = 'x', fsym='F'):
         # Add F-values row
         table = np.vstack([
             A, np.expand_dims(
@@ -32,8 +30,8 @@ class Table:
 
         # Create rows & column names
         _, columns = A.shape
-        labels = [f"x_{idx}" for idx in range(1, sum(A.shape) + 1)]
-        labels = ['s_0', *labels[:columns]], [*labels[columns:], 'F']
+        labels = [f"{sym}_{idx}" for idx in range(1, sum(A.shape) + 1)]
+        labels = ['s_0', *labels[:columns]], [*labels[columns:], fsym]
 
         # Create helper structure
         return cls(table, *labels)
@@ -186,54 +184,49 @@ class Table:
 
 class Simplex:
     @classmethod
-    def resolve(cls, c: np.ndarray, A: np.ndarray, b: np.ndarray) -> tuple[Table, bool]:
-        """
-        Complete Simplex-algorithm pipeline
-        """
-
+    def fix(cls, table: Table) -> bool:
+        """First step of simplex-algorithm"""
         # Exhaust generator till final table
-        for table, _, flag in cls.resolve_gen(c, A, b):
+        for table, _, flag in cls.fix_gen(table):
             pass
 
-        return table, flag
+        return flag
     
     @classmethod
-    def resolve_gen(cls, c: np.ndarray, A: np.ndarray, b: np.ndarray) -> tuple[Table, tuple[int, int], bool]:
-        """
-        Yields Simplex-algorithm execution results on crucial steps
+    def fix_gen(cls, table: Table) -> tuple[Table, tuple[int, int], bool]:
+        # Continiously check for condition №1
+        while fixer := table.find_fixer():
+            fixer, fixable = fixer
 
-        №1: Table created:
-          a) Primary table, None, True
-        №2: Fixed non-accepatble solution:
-          a) Fixed: Fixed table, Pos, True
-          б) No need in fix: Old table, None, True
-          в) Can not be fixed: Old table, None, False
-        №3-inf: Regular pipeline:
-          a) New table, Pos, True
-        """
-        # Creates helper-structure
-        table = Table.create(c, A, b)
+            # This won't be solvable if there is no
+            # negative value in corresponding row
+            # So, exit early
+            if not fixer or not fixable:
+                return
+            # If there is negative value in corresponding column
+            table.step(*fixer)
 
-        # Primary table
-        yield table, None, True
+            # Table-after-fix
+            yield table, fixer, fixable
+    
+    @classmethod
+    def solve(cls, table: Table) -> bool:
+        """First step of simplex-algorithm"""
+        # Exhaust generator till final table
+        flag = False
+        for table, _, flag in cls.fix_gen(table):
+            pass
 
-        # Condition №1
-        # Checks if any value of S0 column is negative
-        position, solvable = table.find_fixer()
+        if not flag:
+            return flag
 
-        # If there is negative value in coreesponding column
-        if position:
-            table.step(*position)
+        for table, _, flag in cls.solve_gen(table):
+            pass
 
-        # Table-after-fix
-        yield table, position, solvable
+        return flag
 
-        # This won't be solvable if there is no
-        # negative value in corresponding row
-        # So, exit early
-        if not solvable:
-            return
-
+    @classmethod
+    def solve_gen(cls, table: Table) -> tuple[Table, tuple[int, int], bool]:
         # Continuosly check for condtion №2
         while solver := table.find_solver():
             solver, solvable = solver
