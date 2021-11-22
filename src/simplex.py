@@ -213,7 +213,7 @@ class Simplex:
     def solve(cls, table: Table) -> bool:
         """First step of simplex-algorithm"""
         # Exhaust generator till final table
-        flag = False
+        flag = True
         for table, _, flag in cls.fix_gen(table):
             pass
 
