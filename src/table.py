@@ -496,6 +496,8 @@ class Table:
             self.vlabels + [self.var_num + 1],
             self.hlabels,
             self.rlabels,
+            self.F,
+            self.minimize,
         )
 
     @property
