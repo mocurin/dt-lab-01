@@ -61,19 +61,16 @@ def fill_defaults(method: Callable):
 @dataclass
 class Vec:
     data: List
-    inverse: bool = False
 
     def __le__(self, oth: float):
-        return type(self)([*self.data, -oth if self.inverse else oth])
+        return type(self)([*self.data, oth])
 
     def __ge__(self, oth: float):
-        return type(self)([*self.data, oth if self.inverse else -oth])
+        return type(self)([*self.data, -oth])
 
     @property
     def inv(self):
         self.data = [-elem for elem in self.data]
-
-        self.inverse = not self.inverse
 
         return self
 
