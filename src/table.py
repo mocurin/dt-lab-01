@@ -572,7 +572,7 @@ class Simplex:
         jdx: int,
     ) -> Optional[int]:
         # s0 & solver columns
-        column = table[:-1, 0].flatten()
+        column = table.b.flatten()
         solver_column = table[:-1, jdx].flatten()
 
         # I'll map division results to array of +np.inf
@@ -584,7 +584,7 @@ class Simplex:
                 column,
                 solver_column,
                 out=infs,
-                where=column * solver_column > 0,
+                where=(solver_column > 0) & (column * solver_column >= 0),
             )
         )
 
