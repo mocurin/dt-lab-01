@@ -523,7 +523,7 @@ class Table:
             A,
             b,
             self.vlabels + [self.var_num + 1],
-            self.hlabels + [] if self.expanded else [self.var_num + 1],
+            self.hlabels + [self.var_num + 1] if self.expanded else [],
             self.rlabels,
             self.F,
             self.expanded,
