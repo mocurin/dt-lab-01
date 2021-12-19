@@ -316,6 +316,7 @@ class Table:
     # Actual system data
     data: np.ndarray
     minimize: bool = True
+    expanded: bool = False
 
     # Rows & columns mapping
     hlabels: list
@@ -334,6 +335,7 @@ class Table:
         rlabels: Optional[List[str]] = None,
         F: np.float64 = 0.0,
         minimize: bool = True,
+        expanded: bool = False,
     ):
         """Creates simplex table data"""
         # Create simplex table
@@ -351,6 +353,7 @@ class Table:
 
         # Set opt target
         self.minimize = minimize
+        self.expanded = expanded
 
     @property
     def A(self) -> np.ndarray:
@@ -400,9 +403,7 @@ class Table:
 
     @classmethod
     def straight(
-        cls,
-        target: Iterable[float],
-        *system: List[Vec],
+        cls, target: Iterable[float], *system: List[Vec], expanded: bool = False
     ) -> Table:
         """
         Place for logic & validation
@@ -411,6 +412,22 @@ class Table:
         system = [(v.data[:-1], v.data[-1]) for v in system]
         A, b = list(map(list, zip(*system)))
         labels = list(range(1, len(A[0]) + len(A) + 1))
+
+        if expanded:
+            A = np.hstack((A, np.eye(len(A), len(A), dtype=np.float64)))
+            target = np.hstack((target, np.zeros((len(A),), dtype=np.float64)))
+
+            print(A, target)
+
+            return cls(
+                target,
+                A,
+                np.array(b, dtype=np.float64),
+                labels[len(b) :],
+                labels,
+                labels[: len(b)],
+                expanded=expanded,
+            )
 
         return cls(
             np.array(target, dtype=np.float64),
@@ -485,21 +502,36 @@ class Table:
         Adds constraint to the system, returns new Table
         To be used with Vec object
         """
+        c = self.c.copy()
+        if self.expanded:
+            c = np.hstack((c, [0]))
+
+        A = np.vstack((self.A.copy(), equation.data[:-1]))
+        if self.expanded:
+            expansion = np.zeros((len(A),))
+            expansion[-1] = 1.0
+            A = np.hstack((A, expansion))
+
+        b = np.hstack((self.b.copy(), equation.data[-1]))
+
         # Copy table with one more line to the system
         return Table(
-            self.c.copy(),
-            np.vstack((self.A.copy(), equation.data[:-1])),
-            np.hstack((self.b.copy(), equation.data[-1])),
+            c,
+            A,
+            b,
             self.vlabels + [self.var_num + 1],
             self.hlabels,
             self.rlabels,
             self.F,
+            self.expanded,
             self.minimize,
         )
 
     @property
     def clone(self) -> Table:
         """Convinience method for preserving table state"""
+
+        print(self.vlabels, self.hlabels, self.rlabels)
 
         return Table(
             self.c.copy(),
@@ -510,6 +542,7 @@ class Table:
             list(self.rlabels),
             self.F,
             self.minimize,
+            self.expanded,
         )
 
 
@@ -651,10 +684,17 @@ class Simplex:
         x, y = table.data.shape
 
         # Adjust labels. Sub 1 from jdx since labels do not include s0
-        table.vlabels[idx], table.hlabels[jdx - 1] = (
-            table.hlabels[jdx - 1],
-            table.vlabels[idx],
-        )
+        print(table.expanded)
+
+        if not table.expanded:
+            table.vlabels[idx], table.hlabels[jdx - 1] = (
+                table.hlabels[jdx - 1],
+                table.vlabels[idx],
+            )
+
+        # If simplex is expanded - replace only v-labels
+        else:
+            table.vlabels[idx] = table.hlabels[jdx - 1]
 
         # Solver-values shortcut
         solver = table[idx, jdx]
