@@ -1,3 +1,13 @@
+# Other
+rk3.ipynb
+test_notebook.ipynb
+
+# VSCode
+.vscode
+
+# Mac
+.DS_store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

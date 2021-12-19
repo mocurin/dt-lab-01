@@ -13,29 +13,23 @@ class Table:
     v_labels: list
 
     @classmethod
-    def create(cls, c: np.ndarray, A: np.ndarray, b: np.ndarray, sym: str = 'x', fsym='F'):
+    def create(
+        cls, c: np.ndarray, A: np.ndarray, b: np.ndarray, sym: str = "x", fsym="F"
+    ):
         # Add F-values row
-        table = np.vstack([
-            A, np.expand_dims(
-                c, axis=0
-            )
-        ])
+        table = np.vstack([A, np.expand_dims(c, axis=0)])
 
         # Add s_0 column with 0 at F row
-        table = np.hstack([
-            np.expand_dims(
-                [*b, 0.], axis=1
-            ), table
-        ])
+        table = np.hstack([np.expand_dims([*b, 0.0], axis=1), table])
 
         # Create rows & column names
         _, columns = A.shape
         labels = [f"{sym}_{idx}" for idx in range(1, sum(A.shape) + 1)]
-        labels = ['s_0', *labels[:columns]], [*labels[columns:], fsym]
+        labels = ["s_0", *labels[:columns]], [*labels[columns:], fsym]
 
         # Create helper structure
         return cls(table, *labels)
-    
+
     def find_negative(self, idx: int) -> Optional[int]:
         # Values of non-basis variables in row of negative s0
         row = self.table[idx, 1:].flatten()
@@ -67,10 +61,7 @@ class Table:
         pos_inf = np.full_like(column, +np.inf)
         idx = np.argmin(
             np.divide(
-                column,
-                solver_column,
-                out=pos_inf,
-                where=column * solver_column > 0
+                column, solver_column, out=pos_inf, where=column * solver_column > 0
             )
         )
 
@@ -122,7 +113,7 @@ class Table:
 
         # Return tuple if both of indices are valid
         return (idx, jdx), True
-    
+
     def step(self, idx: int, jdx: int):
         # Table dimensions
         x, y = self.table.shape
@@ -147,7 +138,7 @@ class Table:
                 self.table[i, j] /= -solver
             else:
                 self.table[i, j] -= solver_column[i] * solver_row[j] / solver
-        
+
         return self
 
     def table_to_md(self, precision: int = 3):
@@ -155,9 +146,9 @@ class Table:
         return pd.DataFrame(
             np.round(self.table, precision),
             index=[f"${value}$" for value in self.v_labels],
-            columns=[f"${value}$" for value in self.h_labels]
+            columns=[f"${value}$" for value in self.h_labels],
         ).to_markdown()
-    
+
     def function_to_md(self, inverse: bool = False, precision: int = 3):
         # Group by basis & non-basis variables
 
@@ -165,20 +156,20 @@ class Table:
             self.table[-1, 0] *= -1
 
         *basis, F = [
-            f"{label}={value}" for value, label in zip(
-                np.round(self.table[:, 0].flatten(), precision),
-                self.v_labels
+            f"{label}={value}"
+            for value, label in zip(
+                np.round(self.table[:, 0].flatten(), precision), self.v_labels
             )
         ]
-        non_basis = '='.join(self.h_labels[1:])
-        variables = ', '.join([f"{non_basis}=0", *basis])
+        non_basis = "=".join(self.h_labels[1:])
+        variables = ", ".join([f"{non_basis}=0", *basis])
 
         if inverse:
             self.table[-1, 0] *= -1
 
         return [
-                f"${F}$",
-                f"${variables}$",
+            f"${F}$",
+            f"${variables}$",
         ]
 
 
@@ -191,7 +182,7 @@ class Simplex:
             pass
 
         return flag
-    
+
     @classmethod
     def fix_gen(cls, table: Table) -> tuple[Table, tuple[int, int], bool]:
         # Continiously check for condition №1
@@ -208,7 +199,7 @@ class Simplex:
 
             # Table-after-fix
             yield table, fixer, fixable
-    
+
     @classmethod
     def solve(cls, table: Table) -> bool:
         """First step of simplex-algorithm"""

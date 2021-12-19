@@ -67,9 +67,18 @@ def matrix_to_latex(
     return f"${line}$"
 
 
+def format_value(val: np.float64) -> str:
+    if np.float64.is_integer(val):
+        val = val.astype(int)
+
+    absed = np.abs(val)
+
+    return ("-" if val < 0 else "") + (absed.astype(str) if absed != 1 else "")
+
+
 def equation_body(values: list, labels: list, precision: int = 3) -> str:
     return "+".join(
-        f"{'-' if value < 0 else ''}{value if np.abs(value) != 1.0 else ''}{var}"
+        f"{format_value(value)}{var}"
         for var, val in zip(labels, values)
         if (value := np.round(val, precision))
     ).replace("+-", "-")
@@ -79,7 +88,7 @@ def equation_system(
     values: np.ndarray, result: np.ndarray, labels: np.array, precision: int = 3
 ) -> str:
     line = "\\\\\n".join(
-        f"{equation_body(val, labels, precision)}={res}"
+        f"{equation_body(val, labels, precision)} = {res.astype(int) if np.float64.is_integer(res) else res}"
         for val, res in zip(values, result)
     )
 
