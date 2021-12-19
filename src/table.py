@@ -402,7 +402,7 @@ class Table:
         return len(self.hlabels) + len(self.vlabels)
 
     @classmethod
-    def create(
+    def straight(
         cls,
         target: Iterable[float],
         *system: List[Vec],
@@ -419,6 +419,24 @@ class Table:
             np.array(target, dtype=np.float64),
             np.array(A, dtype=np.float64),
             np.array(b, dtype=np.float64),
+            labels[len(A[0]) :],
+            labels[: len(A[0])],
+        )
+
+    @classmethod
+    def inverse(
+        cls,
+        target: Iterable[float],
+        *system: List[Vec],
+    ) -> Table:
+        system = [(v.data[:-1], v.data[-1]) for v in system]
+        A, b = list(map(list, zip(*system)))
+        labels = list(range(1, len(A[0]) + len(A) + 1))
+
+        return cls(
+            np.array(b, dtype=np.float64).T * -1,
+            np.array(A, dtype=np.float64).T * -1,
+            np.array(target, dtype=np.float64).T * -1,
             labels[len(A[0]) :],
             labels[: len(A[0])],
         )
@@ -495,24 +513,6 @@ class Table:
             self.minimize,
         )
 
-    @property
-    def inverse(self) -> Table:
-        A = self.A.T * -1
-        b = self.b.T * -1
-        c = self.c.T * -1
-
-        labels = list(range(1, len(A[0]) + len(A) + 1))
-
-        return Table(
-            b,
-            A,
-            c,
-            labels[len(A[0]) :],
-            labels[: len(A[0])],
-            F=self.F * -1,
-            minimize=not self.minimize,
-        )
-
 
 @dataclass
 class SimplexResult:
@@ -556,18 +556,22 @@ class Simplex:
         return (indices[0] + 1) if len(indices) else None
 
     @classmethod
-    def _find_positive(cls, table: Table) -> Optional[int]:
+    def _find_pivot(cls, table: Table) -> Optional[int]:
         # Values of non-basis variables in F-row (w/o s0-column value)
-        row = table[-1, 1:].flatten()
+        row = table.c.flatten()
 
-        # Look for first positive
-        indices = np.flatnonzero(row > 0)
+        # Look for first positive/negative
+        indices = np.flatnonzero((row > 0) if table.minimize else (row < 0))
 
         # Extract index (compensate for missing leading value by adding one to index)
         return (indices[0] + 1) if len(indices) else None
 
     @classmethod
-    def _find_minimal_ratio(cls, table: Table, jdx: int) -> Optional[int]:
+    def _find_minimal_ratio(
+        cls,
+        table: Table,
+        jdx: int,
+    ) -> Optional[int]:
         # s0 & solver columns
         column = table[:-1, 0].flatten()
         solver_column = table[:-1, jdx].flatten()
@@ -575,15 +579,18 @@ class Simplex:
         # I'll map division results to array of +np.inf
         # so any values, which either break divison (or division result < 0)
         # will end up as +np.inf and do not mess up argmin
-        pos_inf = np.full_like(column, +np.inf)
+        infs = np.full_like(column, +np.inf)
         idx = np.argmin(
             np.divide(
-                column, solver_column, out=pos_inf, where=column * solver_column > 0
+                column,
+                solver_column,
+                out=infs,
+                where=column * solver_column > 0,
             )
         )
 
         # Check if there were any valid ratios & return idx
-        return idx if pos_inf[idx] != +np.inf else None
+        return idx if infs[idx] != +np.inf else None
 
     @classmethod
     def _find_fixer(cls, table: Table) -> tuple[tuple[int, int], bool]:
@@ -617,7 +624,7 @@ class Simplex:
 
     @classmethod
     def _find_solver(cls, table: Table) -> tuple[tuple[int, int], bool]:
-        jdx = cls._find_positive(table)
+        jdx = cls._find_pivot(table)
 
         # No column - solved
         if jdx is None:
@@ -721,7 +728,7 @@ class Simplex:
         return history, solved
 
     @classmethod
-    def straight(cls, table: Table) -> SimplexResult:
+    def resolve(cls, table: Table) -> SimplexResult:
         # Trying to fix input table
         fix_hist, fixed = cls.fix(table)
 
@@ -736,7 +743,3 @@ class Simplex:
         sol_hist, solved = cls.solve(table)
 
         return SimplexResult(fixed, solved, fix_hist, sol_hist)
-
-    @classmethod
-    def inverse(cls, table: Table) -> SimplexResult:
-        return cls.straight(table.inverse)
