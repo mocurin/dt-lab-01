@@ -173,7 +173,7 @@ class Format:
         )
 
         # Return target equation
-        return f"$${tgt_sym} = {eq} \\rightarrow {'min' if self.victim.minimize else 'max'}$$"
+        return f"${tgt_sym} = {eq} \\rightarrow {'min' if self.victim.minimize else 'max'}$"
 
     @fill_defaults
     def table(
@@ -229,7 +229,7 @@ class Format:
         vars = [f"{var_sym}_{idx}" for idx in range(self.victim.var_num)]
         # With >= 0 constraint
         res = ", ".join(vars) + " ≥ 0"
-        return f"$${res}$$"
+        return f"${res}$"
 
     @fill_defaults
     def base_vars(
@@ -244,7 +244,7 @@ class Format:
             for value, label in zip(b, self.victim.vlabels)
         )
 
-        return f"$${eq}$$"
+        return f"${eq}$"
 
     @fill_defaults
     def free_vars(
@@ -253,7 +253,7 @@ class Format:
     ) -> str:
         eq = " = ".join(f"{var_sym}_{label}" for label in self.victim.hlabels)
 
-        return f"$${eq} = 0$$"
+        return f"${eq} = 0$"
 
     @fill_defaults
     def solution(
@@ -266,7 +266,7 @@ class Format:
             for value, label in zip(self.victim.real_b, self.victim.rlabels)
         )
 
-        return f"$${eq}$$"
+        return f"${eq}$"
 
     @fill_defaults
     def check(
@@ -309,7 +309,7 @@ class Format:
         tline = pretty_sum(sresult)
 
         rresult = self.victim.result * (-1 if self.victim.minimize else 1)
-        return f"$${tgt_sym} = {pretty_value(rresult, precision)} = {fline} = {sline} = {tline} = {pretty_value(np.sum(result), precision)}$$"
+        return f"${tgt_sym} = {pretty_value(rresult, precision)} = {fline} = {sline} = {tline} = {pretty_value(np.sum(result), precision)}$"
 
 
 class Table:
@@ -518,7 +518,9 @@ class SimplexResult:
     fixed: bool = field(default=True)
     solved: bool = field(default=False)
     fix_history: list = field(default_factory=list)
+    fix_pos: list = field(default_factory=list)
     sol_history: list = field(default_factory=list)
+    sol_pos: list = field(default_factory=list)
 
     def __bool__(self):
         return self.fixed and self.solved
@@ -584,7 +586,7 @@ class Simplex:
                 column,
                 solver_column,
                 out=infs,
-                where=(solver_column > 0) & (column * solver_column >= 0),
+                where=(solver_column != 0) & (column * solver_column >= 0),
             )
         )
 
@@ -673,7 +675,7 @@ class Simplex:
     @classmethod
     def fix(cls, table: Table):
         # First history entry is always source table
-        history = [table]
+        history, positions = [table], list()
         while fixer := cls._find_fixer(table):
             # Dispatch _find_fixer result
             pos, fixable = fixer
@@ -695,13 +697,14 @@ class Simplex:
 
             # Write resulting table to history
             history.append(table)
+            positions.append(pos)
 
-        return history, fixed
+        return history, positions, fixed
 
     @classmethod
     def solve(cls, table: Table):
         # First history entry is always source table
-        history = [table]
+        history, positions = [table], list()
         while solver := cls._find_solver(table):
             # Dispatch _find_solver result
             pos, solvable = solver
@@ -723,22 +726,23 @@ class Simplex:
 
             # Write resulting table to history
             history.append(table)
+            positions.append(pos)
 
-        return history, solved
+        return history, positions, solved
 
     @classmethod
     def resolve(cls, table: Table) -> SimplexResult:
         # Trying to fix input table
-        fix_hist, fixed = cls.fix(table)
+        fix_hist, fix_pos, fixed = cls.fix(table)
 
         # Unable to fix input table
         if not fixed:
-            return SimplexResult(fixed, False, fix_hist)
+            return SimplexResult(fixed, False, fix_hist, fix_pos)
 
         # The last table is resulting fix-table
         *_, table = fix_hist
 
         # Tryin to solve fixed table
-        sol_hist, solved = cls.solve(table)
+        sol_hist, sol_pos, solved = cls.solve(table)
 
-        return SimplexResult(fixed, solved, fix_hist, sol_hist)
+        return SimplexResult(fixed, solved, fix_hist, fix_pos, sol_hist, sol_pos)
