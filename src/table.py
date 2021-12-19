@@ -58,7 +58,7 @@ def fill_defaults(method: Callable):
     return _wrapper
 
 
-@dataclass(frozen=True)
+@dataclass
 class Vec:
     data: List
     inverse: bool = False
