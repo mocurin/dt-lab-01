@@ -527,7 +527,11 @@ class SimplexResult:
 
     @property
     def history(self):
-        return self.fix_history + self.sol_history[1:]
+        return self.fix_history[1:] + self.sol_history[1:]
+
+    @property
+    def solvers(self):
+        return self.fix_pos + self.sol_pos
 
     @property
     def source(self):
