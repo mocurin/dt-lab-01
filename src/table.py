@@ -552,10 +552,10 @@ class Simplex:
         row = table[idx, 1:].flatten()
 
         # Look for first negative
-        indices = np.flatnonzero(row < 0)
+        idx = np.argmin(row)
 
         # Extract index (compensate for missing leading value by adding one to index)
-        return (indices[0] + 1) if len(indices) else None
+        return (idx + 1) if row[idx] < 0 else None
 
     @classmethod
     def _find_pivot(cls, table: Table) -> Optional[int]:
@@ -563,10 +563,10 @@ class Simplex:
         row = table.c.flatten()
 
         # Look for first positive/negative
-        indices = np.flatnonzero((row > 0) if table.minimize else (row < 0))
+        idx = (np.argmax if table.minimize else np.argmin)(row)
 
         # Extract index (compensate for missing leading value by adding one to index)
-        return (indices[0] + 1) if len(indices) else None
+        return (idx + 1) if (row[idx] > 0 if table.minimize else row[idx] < 0) else None
 
     @classmethod
     def _find_minimal_ratio(
