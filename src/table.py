@@ -417,8 +417,6 @@ class Table:
             A = np.hstack((A, np.eye(len(A), len(A), dtype=np.float64)))
             target = np.hstack((target, np.zeros((len(A),), dtype=np.float64)))
 
-            print(A, target)
-
             return cls(
                 target,
                 A,
@@ -530,8 +528,6 @@ class Table:
     @property
     def clone(self) -> Table:
         """Convinience method for preserving table state"""
-
-        print(self.vlabels, self.hlabels, self.rlabels)
 
         return Table(
             self.c.copy(),
@@ -684,8 +680,6 @@ class Simplex:
         x, y = table.data.shape
 
         # Adjust labels. Sub 1 from jdx since labels do not include s0
-        print(table.expanded)
-
         if not table.expanded:
             table.vlabels[idx], table.hlabels[jdx - 1] = (
                 table.hlabels[jdx - 1],
