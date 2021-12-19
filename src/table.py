@@ -526,8 +526,8 @@ class Table:
             self.hlabels + ([self.var_num + 1] if self.expanded else []),
             self.rlabels,
             self.F,
-            self.expanded,
             self.minimize,
+            self.expanded,
         )
 
     @property
