@@ -399,7 +399,11 @@ class Table:
     @property
     def var_num(self) -> int:
         """Number of bound/unbound variables"""
-        return len(self.hlabels) + len(self.vlabels)
+        return (
+            len(self.hlabels)
+            if self.expanded
+            else (len(self.hlabels) + len(self.vlabels))
+        )
 
     @classmethod
     def straight(
@@ -508,6 +512,7 @@ class Table:
         if self.expanded:
             expansion = np.zeros((len(A),))
             expansion[-1] = 1.0
+            expansion = np.expand_dims(expansion, axis=1)
             A = np.hstack((A, expansion))
 
         b = np.hstack((self.b.copy(), equation.data[-1]))
