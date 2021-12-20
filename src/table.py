@@ -460,8 +460,8 @@ class Table:
             np.array(b, dtype=np.float64).T * -1,
             np.array(A, dtype=np.float64).T * -1,
             np.array(target, dtype=np.float64).T * -1,
-            labels[len(A[0]) :],
-            labels[: len(A[0])],
+            labels[len(A) :],
+            labels[: len(A)],
         )
 
     def __rshift__(self, oth: Callable):
