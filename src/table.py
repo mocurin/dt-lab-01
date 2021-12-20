@@ -189,7 +189,14 @@ class Format:
             index=[f"${var_sym}_{value}$" for value in self.victim.vlabels]
             + [f"${tgt_sym}$"],
             columns=[f"${unbound}$"]
-            + [f"${var_sym}_{value}$" for value in self.victim.hlabels],
+            + [
+                f"${var_sym}_{value}$"
+                for value in (
+                    self.victim.hlabels
+                    if not self.victim.expanded
+                    else [idx + 1 for idx, _ in enumerate(self.victim.hlabels)]
+                )
+            ],
         ).to_markdown()
 
     @fill_defaults
@@ -685,15 +692,10 @@ class Simplex:
         x, y = table.data.shape
 
         # Adjust labels. Sub 1 from jdx since labels do not include s0
-        if not table.expanded:
-            table.vlabels[idx], table.hlabels[jdx - 1] = (
-                table.hlabels[jdx - 1],
-                table.vlabels[idx],
-            )
-
-        # If simplex is expanded - replace only v-labels
-        else:
-            table.vlabels[idx] = table.hlabels[jdx - 1]
+        table.vlabels[idx], table.hlabels[jdx - 1] = (
+            table.hlabels[jdx - 1],
+            table.vlabels[idx],
+        )
 
         # Solver-values shortcut
         solver = table[idx, jdx]
