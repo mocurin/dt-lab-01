@@ -658,15 +658,26 @@ class Simplex:
         solver_column = table[:, jdx].flatten()
 
         # Is there any other way?
-        for i, j in product(range(x), range(y)):
-            if i == idx and j == jdx:
-                table[i, j] = 1 / solver
-            elif i == idx:
-                table[i, j] /= solver
-            elif j == jdx:
-                table[i, j] /= -solver
-            else:
-                table[i, j] -= solver_column[i] * solver_row[j] / solver
+        if not table.expanded:
+            for i, j in product(range(x), range(y)):
+                if i == idx and j == jdx:
+                    table[i, j] = 1 / solver
+                elif i == idx:
+                    table[i, j] /= solver
+                elif j == jdx:
+                    table[i, j] /= -solver
+                else:
+                    table[i, j] -= solver_column[i] * solver_row[j] / solver
+        else:
+            for i, j in product(range(x), range(y)):
+                # if i == idx and j == jdx:
+                #     table[i, j] = 1 / solver
+                if i == idx:
+                    table[i, j] /= solver
+                # elif j == jdx:
+                #     table[i, j] /= -solver
+                else:
+                    table[i, j] -= solver_column[i] * solver_row[j] / solver
 
         return table
 
