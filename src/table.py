@@ -173,7 +173,7 @@ class Format:
         )
 
         # Return target equation
-        return f"$${tgt_sym} = {eq} \\rightarrow {'min' if self.victim.minimize else 'max'}$$"
+        return f"${tgt_sym} = {eq} \\rightarrow {'min' if self.victim.minimize else 'max'}$"
 
     @fill_defaults
     def table(
@@ -189,7 +189,14 @@ class Format:
             index=[f"${var_sym}_{value}$" for value in self.victim.vlabels]
             + [f"${tgt_sym}$"],
             columns=[f"${unbound}$"]
-            + [f"${var_sym}_{value}$" for value in self.victim.hlabels],
+            + [
+                f"${var_sym}_{value}$"
+                for value in (
+                    self.victim.hlabels
+                    if not self.victim.expanded
+                    else [idx + 1 for idx, _ in enumerate(self.victim.hlabels)]
+                )
+            ],
         ).to_markdown()
 
     @fill_defaults
@@ -229,7 +236,7 @@ class Format:
         vars = [f"{var_sym}_{idx}" for idx in range(self.victim.var_num)]
         # With >= 0 constraint
         res = ", ".join(vars) + " ≥ 0"
-        return f"$${res}$$"
+        return f"${res}$"
 
     @fill_defaults
     def base_vars(
@@ -244,7 +251,7 @@ class Format:
             for value, label in zip(b, self.victim.vlabels)
         )
 
-        return f"$${eq}$$"
+        return f"${eq}$"
 
     @fill_defaults
     def free_vars(
@@ -253,7 +260,7 @@ class Format:
     ) -> str:
         eq = " = ".join(f"{var_sym}_{label}" for label in self.victim.hlabels)
 
-        return f"$${eq} = 0$$"
+        return f"${eq} = 0$"
 
     @fill_defaults
     def solution(
@@ -266,7 +273,7 @@ class Format:
             for value, label in zip(self.victim.real_b, self.victim.rlabels)
         )
 
-        return f"$${eq}$$"
+        return f"${eq}$"
 
     @fill_defaults
     def check(
@@ -309,13 +316,14 @@ class Format:
         tline = pretty_sum(sresult)
 
         rresult = self.victim.result * (-1 if self.victim.minimize else 1)
-        return f"$${tgt_sym} = {pretty_value(rresult, precision)} = {fline} = {sline} = {tline} = {pretty_value(np.sum(result), precision)}$$"
+        return f"${tgt_sym} = {pretty_value(rresult, precision)} = {fline} = {sline} = {tline} = {pretty_value(np.sum(result), precision)}$"
 
 
 class Table:
     # Actual system data
     data: np.ndarray
     minimize: bool = True
+    expanded: bool = False
 
     # Rows & columns mapping
     hlabels: list
@@ -334,6 +342,7 @@ class Table:
         rlabels: Optional[List[str]] = None,
         F: np.float64 = 0.0,
         minimize: bool = True,
+        expanded: bool = False,
     ):
         """Creates simplex table data"""
         # Create simplex table
@@ -351,6 +360,7 @@ class Table:
 
         # Set opt target
         self.minimize = minimize
+        self.expanded = expanded
 
     @property
     def A(self) -> np.ndarray:
@@ -396,13 +406,15 @@ class Table:
     @property
     def var_num(self) -> int:
         """Number of bound/unbound variables"""
-        return len(self.hlabels) + len(self.vlabels)
+        return (
+            len(self.hlabels)
+            if self.expanded
+            else (len(self.hlabels) + len(self.vlabels))
+        )
 
     @classmethod
     def straight(
-        cls,
-        target: Iterable[float],
-        *system: List[Vec],
+        cls, target: Iterable[float], *system: List[Vec], expanded: bool = False
     ) -> Table:
         """
         Place for logic & validation
@@ -411,6 +423,20 @@ class Table:
         system = [(v.data[:-1], v.data[-1]) for v in system]
         A, b = list(map(list, zip(*system)))
         labels = list(range(1, len(A[0]) + len(A) + 1))
+
+        if expanded:
+            A = np.hstack((A, np.eye(len(A), len(A), dtype=np.float64)))
+            target = np.hstack((target, np.zeros((len(A),), dtype=np.float64)))
+
+            return cls(
+                target,
+                A,
+                np.array(b, dtype=np.float64),
+                labels[len(b) :],
+                labels,
+                labels[: len(b)],
+                expanded=expanded,
+            )
 
         return cls(
             np.array(target, dtype=np.float64),
@@ -434,8 +460,8 @@ class Table:
             np.array(b, dtype=np.float64).T * -1,
             np.array(A, dtype=np.float64).T * -1,
             np.array(target, dtype=np.float64).T * -1,
-            labels[len(A[0]) :],
-            labels[: len(A[0])],
+            labels[len(A) :],
+            labels[: len(A)],
         )
 
     def __rshift__(self, oth: Callable):
@@ -485,16 +511,30 @@ class Table:
         Adds constraint to the system, returns new Table
         To be used with Vec object
         """
+        c = self.c.copy()
+        if self.expanded:
+            c = np.hstack((c, [0]))
+
+        A = np.vstack((self.A.copy(), equation.data[:-1]))
+        if self.expanded:
+            expansion = np.zeros((len(A),))
+            expansion[-1] = 1.0
+            expansion = np.expand_dims(expansion, axis=1)
+            A = np.hstack((A, expansion))
+
+        b = np.hstack((self.b.copy(), equation.data[-1]))
+
         # Copy table with one more line to the system
         return Table(
-            self.c.copy(),
-            np.vstack((self.A.copy(), equation.data[:-1])),
-            np.hstack((self.b.copy(), equation.data[-1])),
+            c,
+            A,
+            b,
             self.vlabels + [self.var_num + 1],
-            self.hlabels,
+            self.hlabels + ([self.var_num + 1] if self.expanded else []),
             self.rlabels,
             self.F,
             self.minimize,
+            self.expanded,
         )
 
     @property
@@ -510,6 +550,7 @@ class Table:
             list(self.rlabels),
             self.F,
             self.minimize,
+            self.expanded,
         )
 
 
@@ -518,14 +559,20 @@ class SimplexResult:
     fixed: bool = field(default=True)
     solved: bool = field(default=False)
     fix_history: list = field(default_factory=list)
+    fix_pos: list = field(default_factory=list)
     sol_history: list = field(default_factory=list)
+    sol_pos: list = field(default_factory=list)
 
     def __bool__(self):
         return self.fixed and self.solved
 
     @property
     def history(self):
-        return self.fix_history + self.sol_history[1:]
+        return self.fix_history[1:] + self.sol_history[1:]
+
+    @property
+    def solvers(self):
+        return self.fix_pos + self.sol_pos
 
     @property
     def source(self):
@@ -584,7 +631,7 @@ class Simplex:
                 column,
                 solver_column,
                 out=infs,
-                where=(solver_column > 0) & (column * solver_column >= 0),
+                where=(solver_column != 0) & (column * solver_column >= 0),
             )
         )
 
@@ -684,7 +731,7 @@ class Simplex:
     @classmethod
     def fix(cls, table: Table):
         # First history entry is always source table
-        history = [table]
+        history, positions = [table], list()
         while fixer := cls._find_fixer(table):
             # Dispatch _find_fixer result
             pos, fixable = fixer
@@ -706,13 +753,14 @@ class Simplex:
 
             # Write resulting table to history
             history.append(table)
+            positions.append(pos)
 
-        return history, fixed
+        return history, positions, fixed
 
     @classmethod
     def solve(cls, table: Table):
         # First history entry is always source table
-        history = [table]
+        history, positions = [table], list()
         while solver := cls._find_solver(table):
             # Dispatch _find_solver result
             pos, solvable = solver
@@ -734,22 +782,23 @@ class Simplex:
 
             # Write resulting table to history
             history.append(table)
+            positions.append(pos)
 
-        return history, solved
+        return history, positions, solved
 
     @classmethod
     def resolve(cls, table: Table) -> SimplexResult:
         # Trying to fix input table
-        fix_hist, fixed = cls.fix(table)
+        fix_hist, fix_pos, fixed = cls.fix(table)
 
         # Unable to fix input table
         if not fixed:
-            return SimplexResult(fixed, False, fix_hist)
+            return SimplexResult(fixed, False, fix_hist, fix_pos)
 
         # The last table is resulting fix-table
         *_, table = fix_hist
 
         # Tryin to solve fixed table
-        sol_hist, solved = cls.solve(table)
+        sol_hist, sol_pos, solved = cls.solve(table)
 
-        return SimplexResult(fixed, solved, fix_hist, sol_hist)
+        return SimplexResult(fixed, solved, fix_hist, fix_pos, sol_hist, sol_pos)
